@@ -1,0 +1,9 @@
+MainPrgm L3_software;
+Var
+let x::Int;
+BeginPg
+{
+    x := 5;
+    if (x > 3) then { output("Valid"); }
+}
+EndPg;

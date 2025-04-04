@@ -1,0 +1,9 @@
+MainPrgm invalid_;
+Var
+let 123var::Float;
+BeginPg
+{
+    x := 5.5;
+    y := 7__var;
+}
+EndPg;

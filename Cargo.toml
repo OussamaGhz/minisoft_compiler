@@ -1,0 +1,13 @@
+[package]
+name = "Min_compiler"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+logos = "0.12"       # For lexing
+lalrpop = "0.19"     # For parsing
+lalrpop-util = "0.19"
+
+[build-dependencies]
+lalrpop = "0.19"     # For build-time code generation
