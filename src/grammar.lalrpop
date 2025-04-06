@@ -1,0 +1,316 @@
+use std::str::FromStr;
+use crate::ast::{Program, Declaration, Statement, Expression, BinaryOp, Condition, Variable};
+use crate::lexer::{Token, LexResult};
+
+grammar<'input>;
+
+// External tokens from the Logos lexer
+extern {
+    type Location = usize;
+    type Error = String;
+
+    enum Token {
+        // Keywords
+        "MainPrgm" => Token::MainPrgm,
+        "Var" => Token::Var,
+        "BeginPg" => Token::BeginPg,
+        "EndPg" => Token::EndPg,
+        "let" => Token::Let,
+        "Int" => Token::Int,
+        "Float" => Token::Float,
+        "@define" => Token::Define,
+        "Const" => Token::Const,
+        "input" => Token::Input,
+        "output" => Token::Output,
+        "if" => Token::If,
+        "then" => Token::Then,
+        "else" => Token::Else,
+        "do" => Token::Do,
+        "while" => Token::While,
+        "for" => Token::For,
+        "from" => Token::From,
+        "to" => Token::To,
+        "step" => Token::Step,
+        
+        // Operators
+        "+" => Token::Plus,
+        "=" => Token::Equals,
+        "-" => Token::Minus,
+        "*" => Token::Multiply,
+        "/" => Token::Divide,
+        "<" => Token::LessThan,
+        ">" => Token::GreaterThan,
+        "<=" => Token::LessEqual,
+        ">=" => Token::GreaterEqual,
+        "==" => Token::Equal,
+        "!=" => Token::NotEqual,
+        "AND" => Token::And,
+        "OR" => Token::Or,
+        "!" => Token::Not,
+        
+        // Separators and punctuation
+        ":=" => Token::Assign,
+        ";" => Token::Semicolon,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        
+        // Literals and identifiers
+        Identifier => Token::Identifier(<String>),
+        IntLiteral => Token::IntLiteral(<i32>),
+        SignedIntLiteral => Token::SignedIntLiteral(<i32>),
+        FloatLiteral => Token::FloatLiteral(<f32>),
+        SignedFloatLiteral => Token::SignedFloatLiteral(<f32>),
+        StringLiteral => Token::StringLiteral(<String>), // Add this token to your lexer
+    }
+}
+
+
+// 1. Program Structure
+pub Program: Program = {
+    "MainPrgm" <program_name:IdentifierRule> ";" 
+    "Var" <declarations:DeclarationList> 
+    "BeginPg" "{" <statements:StatementList> "}" "EndPg" ";" => {
+        Program {
+            name: program_name,
+            declarations,
+            statements,
+        }
+    }
+};
+
+// 2. Variable and Constant Declarations
+DeclarationList: Vec<Declaration> = {
+    <declarations:Declaration*> => declarations,
+};
+
+Declaration: Declaration = {
+    // Variable declaration
+    "let" <names:IdentifierList> ":" <type_spec:TypeSpecifier> ";" => {
+        Declaration::VariableDecl { names, type_spec }
+    },
+    
+    // Constant declaration
+    "@define" "Const" <name:IdentifierRule> ":" <type_name:TypeName> "=" <value:LiteralRule> ";" => {
+        Declaration::ConstDecl { name, type_name, value }
+    },
+};
+
+IdentifierList: Vec<String> = {
+    <v:(<IdentifierRule> ",")*> <e:IdentifierRule> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+};
+
+TypeSpecifier: Expression = {
+    TypeName => Expression::Type(<>),
+    "[" <type_name:TypeName> ";" <size:IntLiteralRule> "]" => Expression::ArrayType {
+        type_name,
+        size,
+    },
+};
+
+TypeName: String = {
+    "Int" => String::from("Int"),
+    "Float" => String::from("Float"),
+};
+
+// 3. Instructions/Statements
+// Ensure non-empty blocks for control structures
+StatementList: Vec<Statement> = {
+    <statements:Statement*> => statements,
+};
+
+Statement: Statement = {
+    // Assignment
+    <var:VariableRule> ":=" <expr:Expression> ";" => Statement::Assignment {
+        target: var,
+        value: expr,
+    },
+    
+    // If-Else condition
+    "if" "(" <condition:ConditionRule> ")" "then" "{" <if_branch:StatementList> "}" "else" "{" <else_branch:StatementList> "}" => Statement::IfElse {
+        condition,
+        if_branch,
+        else_branch,
+    },
+
+    // If with no else
+    "if" "(" <condition:ConditionRule> ")" "then" "{" <if_branch:StatementList> "}" => Statement::IfElse {
+        condition,
+        if_branch,
+        else_branch: Vec::new(),
+    },
+    
+    // Do-While loop
+    "do" "{" <body:StatementList> "}" "while" "(" <condition:ConditionRule> ")" ";" => Statement::DoWhile {
+        condition,
+        body,
+    },
+    
+    // For loop
+    "for" <var:IdentifierRule> "from" <start:Expression> "to" <end:Expression> "step" <step:Expression> "{" <body:StatementList> "}" => Statement::For {
+        var,
+        start,
+        end,
+        step,
+        body,
+    },
+    
+    // Input
+    "input" "(" <var:IdentifierRule> ")" ";" => Statement::Input {
+        var,
+    },
+    
+    // Output - can handle string literals or variables
+    "output" "(" <expressions:ExpressionList> ")" ";" => Statement::Output {
+        expressions,
+    },
+};
+
+VariableRule: Variable = {
+    <name:IdentifierRule> => Variable::Simple(name),
+    <name:IdentifierRule> "[" <index:Expression> "]" => Variable::Array {
+        name,
+        index: Box::new(index),
+    },
+};
+
+// 4. Expressions and operator precedence
+Expression: Expression = {
+    // Only logical expressions should be part of the general expression hierarchy
+    LogicalExpr,
+};
+
+ExpressionList: Vec<Expression> = {
+    // Empty list
+    => Vec::new(),
+    
+    // Non-empty list
+    <v:(<Expression> ",")*> <e:Expression> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+};
+
+// Expression precedence hierarchy (from lowest to highest)
+LogicalExpr: Expression = {
+    ComparisonExpr,
+    <left:LogicalExpr> "OR" <right:ComparisonExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Or,
+        right: Box::new(right),
+    },
+    <left:LogicalExpr> "AND" <right:ComparisonExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::And,
+        right: Box::new(right),
+    },
+};
+
+ComparisonExpr: Expression = {
+    AddSubExpr,
+    <left:ComparisonExpr> "<" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::LessThan,
+        right: Box::new(right),
+    },
+    <left:ComparisonExpr> ">" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::GreaterThan,
+        right: Box::new(right),
+    },
+    <left:ComparisonExpr> "<=" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::LessEqual,
+        right: Box::new(right),
+    },
+    <left:ComparisonExpr> ">=" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::GreaterEqual,
+        right: Box::new(right),
+    },
+    <left:ComparisonExpr> "==" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Equal,
+        right: Box::new(right),
+    },
+    <left:ComparisonExpr> "!=" <right:AddSubExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::NotEqual,
+        right: Box::new(right),
+    },
+};
+
+AddSubExpr: Expression = {
+    MulDivExpr,
+    <left:AddSubExpr> "+" <right:MulDivExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Add,
+        right: Box::new(right),
+    },
+    <left:AddSubExpr> "-" <right:MulDivExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Subtract,
+        right: Box::new(right),
+    },
+};
+
+MulDivExpr: Expression = {
+    UnaryExpr,
+    <left:MulDivExpr> "*" <right:UnaryExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Multiply,
+        right: Box::new(right),
+    },
+    <left:MulDivExpr> "/" <right:UnaryExpr> => Expression::Binary {
+        left: Box::new(left),
+        op: BinaryOp::Divide,
+        right: Box::new(right),
+    },
+};
+
+UnaryExpr: Expression = {
+    PrimaryExpr,
+    "!" <e:UnaryExpr> => Expression::Not(Box::new(e)),
+    "-" <e:UnaryExpr> => Expression::Binary {  // Unary minus as binary operation with 0
+        left: Box::new(Expression::Integer(0)),
+        op: BinaryOp::Subtract,
+        right: Box::new(e),
+    },
+};
+
+PrimaryExpr: Expression = {
+    <variable:VariableRule> => Expression::Var(variable),
+    <literal:LiteralRule> => Expression::Literal(literal),
+    "(" <e:LogicalExpr> ")" => e,
+    <s:StringLiteralRule> => Expression::String(s),
+};
+
+ConditionRule: Condition = {
+    <expr:Expression> => Condition::Expr(expr),
+};
+
+// Literals
+LiteralRule: Expression = {
+    <n:IntLiteralRule> => Expression::Integer(n),
+    <n:SignedIntLiteralRule> => Expression::Integer(n),
+    <n:FloatLiteralRule> => Expression::Float(n),
+    <n:SignedFloatLiteralRule> => Expression::Float(n),
+};
+
+// Terminal rules
+IdentifierRule: String = <s:Identifier> => s;
+IntLiteralRule: i32 = <n:IntLiteral> => n;
+SignedIntLiteralRule: i32 = <n:SignedIntLiteral> => n;
+FloatLiteralRule: f32 = <n:FloatLiteral> => n;
+SignedFloatLiteralRule: f32 = <n:SignedFloatLiteral> => n;
+StringLiteralRule: String = <s:StringLiteral> => s; // Use proper StringLiteral token
