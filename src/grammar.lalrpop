@@ -290,7 +290,7 @@ UnaryExpr: Expression = {
 
 PrimaryExpr: Expression = {
     <variable:VariableRule> => Expression::Var(variable),
-    <literal:LiteralRule> => Expression::Literal(literal),
+    <literal:LiteralRule> => Expression::Literal(Box::new(literal)),
     "(" <e:LogicalExpr> ")" => e,
     <s:StringLiteralRule> => Expression::String(s),
 };

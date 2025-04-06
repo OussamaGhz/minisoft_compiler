@@ -67,9 +67,8 @@ pub enum Expression {
         right: Box<Expression>,
     },
     Not(Box<Expression>),
-    Literal(Expression),
+    Literal(Box<Expression>),  // Use Box to break the recursive definition
 }
-
 #[derive(Debug, Clone)]
 pub enum Variable {
     Simple(String),

@@ -61,13 +61,13 @@ pub enum Token {
     #[token("to")]
     To,
 
-    #[token("step")] 
+    #[token("step")]
     Step,
 
     // Operators
     #[token("+")]
     Plus,
-    
+
     #[token("=")]
     Equals,
 
@@ -154,13 +154,15 @@ pub enum Token {
     #[regex(r"\([+-][0-9]+\.[0-9]+\)", lex_signed_float)]
     SignedFloatLiteral(f32),
 
+    #[regex(r#""[^"]*""#, lex_string)]
+    StringLiteral(String),
+
     // Comments - these are skipped but we need to define them
     #[regex(r"< !-.*-!>", logos::skip)]
     #[regex(r"\{--[^-]*(?:-[^-]+)*--\}", logos::skip)]
     // Whitespace and newlines
     #[regex(r"[ \t\n\r]+", logos::skip)]
-    // Error
-    #[error]
+    // Error variant (no longer needs #[error] attribute in Logos 0.13+)
     Error,
 }
 
@@ -191,6 +193,12 @@ fn lex_signed_float(lex: &mut logos::Lexer<Token>) -> f32 {
     number_str.parse().unwrap_or(0.0)
 }
 
+fn lex_string(lex: &mut logos::Lexer<Token>) -> String {
+    let text = lex.slice();
+    // Remove the surrounding quotes
+    text[1..text.len() - 1].to_string()
+}
+
 // Implement Display for Token to pretty-print tokens
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -200,7 +208,33 @@ impl fmt::Display for Token {
             Token::SignedIntLiteral(n) => write!(f, "SignedIntLiteral({})", n),
             Token::FloatLiteral(n) => write!(f, "FloatLiteral({})", n),
             Token::SignedFloatLiteral(n) => write!(f, "SignedFloatLiteral({})", n),
+            Token::StringLiteral(s) => write!(f, "StringLiteral({})", s),
             _ => write!(f, "{:?}", self),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct LexResult {
+    pub token: Token,
+    pub span: Span,
+}
+
+pub fn lex(input: &str) -> Vec<LexResult> {
+    let mut lexer = Token::lexer(input);
+    let mut tokens = Vec::new();
+
+    while let Some(token_result) = lexer.next() {
+        match token_result {
+            Ok(token) if token != Token::Error => {
+                tokens.push(LexResult {
+                    token: token.clone(),
+                    span: lexer.span(),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    tokens
 }
