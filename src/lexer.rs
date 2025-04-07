@@ -218,18 +218,42 @@ impl fmt::Display for Token {
 pub struct LexResult {
     pub token: Token,
     pub span: Span,
+    #[allow(dead_code)]
+    pub line: usize,
+    #[allow(dead_code)]
+    pub column: usize,
 }
 
 pub fn lex(input: &str) -> Vec<LexResult> {
     let mut lexer = Token::lexer(input);
     let mut tokens = Vec::new();
+    let mut line_starts = vec![0];
+    
+    // Build line starts index for column calculation
+    for (i, c) in input.char_indices() {
+        if c == '\n' {
+            line_starts.push(i + 1);
+        }
+    }
 
     while let Some(token_result) = lexer.next() {
         match token_result {
             Ok(token) if token != Token::Error => {
+                let span = lexer.span();
+                
+                // Calculate line and column of the token
+                let mut l = 1;
+                while l < line_starts.len() && line_starts[l] <= span.start {
+                    l += 1;
+                }
+                let token_line = l;
+                let token_column = span.start - line_starts[l - 1] + 1;
+                
                 tokens.push(LexResult {
                     token: token.clone(),
-                    span: lexer.span(),
+                    span,
+                    line: token_line,
+                    column: token_column,
                 });
             }
             _ => {}
