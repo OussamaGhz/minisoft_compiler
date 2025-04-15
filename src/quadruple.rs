@@ -100,14 +100,14 @@ impl QuadrupleGenerator {
     
     fn generate_from_statement(&mut self, stmt: &crate::ast::Statement) {
         match stmt {
-            crate::ast::Statement::Assignment { target, value } => {
+            crate::ast::Statement::Assignment { target, value, location: _ } => {
                 // Generate code for the expression
                 let expr_result = self.generate_from_expression(value);
                 
                 // Create the assignment quadruple
                 let target_operand = match target {
                     crate::ast::Variable::Simple(name) => Some(Operand::Variable(name.clone())),
-                    crate::ast::Variable::Array { name, index } => {
+                    crate::ast::Variable::Array { name, index, location: _ } => {
                         let index_result = self.generate_from_expression(index);
                         Some(Operand::ArrayElement(name.clone(), Box::new(index_result.unwrap())))
                     }
@@ -115,10 +115,107 @@ impl QuadrupleGenerator {
                 
                 self.emit(Operator::Assign, expr_result, None, target_operand);
             },
-            // Add cases for other statement types
-            _ => {
-                // Implement other statement types (if-else, loops, etc.)
-            }
+            crate::ast::Statement::IfElse { condition, if_branch, else_branch, location: _ } => {
+                // Generate code for if-else statement
+                let cond_result = self.generate_from_condition(condition);
+                let else_label = self.new_label();
+                let end_label = self.new_label();
+                
+                // If condition is false, go to else branch
+                self.emit(Operator::IfFalse, cond_result, None, Some(else_label.clone()));
+                
+                // Generate code for if branch
+                for stmt in if_branch {
+                    self.generate_from_statement(stmt);
+                }
+                
+                // After if branch, jump to end
+                self.emit(Operator::Goto, None, None, Some(end_label.clone()));
+                
+                // Else label
+                self.emit(Operator::Label, None, None, Some(else_label));
+                
+                // Generate code for else branch
+                for stmt in else_branch {
+                    self.generate_from_statement(stmt);
+                }
+                
+                // End label
+                self.emit(Operator::Label, None, None, Some(end_label));
+            },
+            crate::ast::Statement::DoWhile { condition, body, location: _ } => {
+                let start_label = self.new_label();
+                let end_label = self.new_label();
+                
+                // Start label
+                self.emit(Operator::Label, None, None, Some(start_label.clone()));
+                
+                // Generate code for body
+                for stmt in body {
+                    self.generate_from_statement(stmt);
+                }
+                
+                // Generate code for condition
+                let cond_result = self.generate_from_condition(condition);
+                
+                // If condition is true, go back to start
+                self.emit(Operator::IfTrue, cond_result, None, Some(start_label));
+            },
+            crate::ast::Statement::For { var, start, end, step, body, location: _ } => {
+                // Generate code for for loop
+                let loop_var = Operand::Variable(var.clone());
+                let start_result = self.generate_from_expression(start);
+                let end_result = self.generate_from_expression(end);
+                let step_result = self.generate_from_expression(step);
+                
+                let loop_start = self.new_label();
+                let loop_end = self.new_label();
+                
+                // Initialize loop variable
+                self.emit(Operator::Assign, start_result, None, Some(loop_var.clone()));
+                
+                // Loop start label
+                self.emit(Operator::Label, None, None, Some(loop_start.clone()));
+                
+                // Check if loop variable > end
+                let cond_temp = self.new_temp();
+                self.emit(Operator::GreaterThan, Some(loop_var.clone()), end_result, Some(cond_temp.clone()));
+                
+                // If condition is true, exit loop
+                self.emit(Operator::IfTrue, Some(cond_temp), None, Some(loop_end.clone()));
+                
+                // Generate code for loop body
+                for stmt in body {
+                    self.generate_from_statement(stmt);
+                }
+                
+                // Increment loop variable
+                let new_val = self.new_temp();
+                self.emit(Operator::Add, Some(loop_var.clone()), step_result, Some(new_val.clone()));
+                self.emit(Operator::Assign, Some(new_val), None, Some(loop_var));
+                
+                // Jump back to loop start
+                self.emit(Operator::Goto, None, None, Some(loop_start));
+                
+                // Loop end label
+                self.emit(Operator::Label, None, None, Some(loop_end));
+            },
+            crate::ast::Statement::Input { var, location: _ } => {
+                let var_operand = Operand::Variable(var.clone());
+                self.emit(Operator::Input, None, None, Some(var_operand));
+            },
+            crate::ast::Statement::Output { expressions, location: _ } => {
+                for expr in expressions {
+                    let result = self.generate_from_expression(expr);
+                    self.emit(Operator::Output, result, None, None);
+                }
+            },
+        }
+    }
+    
+    fn generate_from_condition(&mut self, condition: &crate::ast::Condition) -> Option<Operand> {
+        match condition {
+            crate::ast::Condition::Expr(expr) => self.generate_from_expression(expr),
         }
     }
     
@@ -127,7 +224,7 @@ impl QuadrupleGenerator {
             crate::ast::Expression::Var(var) => {
                 match var {
                     crate::ast::Variable::Simple(name) => Some(Operand::Variable(name.clone())),
-                    crate::ast::Variable::Array { name, index } => {
+                    crate::ast::Variable::Array { name, index, location: _ } => {
                         let index_result = self.generate_from_expression(index);
                         Some(Operand::ArrayElement(name.clone(), Box::new(index_result.unwrap())))
                     }
@@ -136,7 +233,7 @@ impl QuadrupleGenerator {
             crate::ast::Expression::Integer(n) => Some(Operand::Constant(n.to_string())),
             crate::ast::Expression::Float(n) => Some(Operand::Constant(n.to_string())),
             crate::ast::Expression::String(s) => Some(Operand::StringLiteral(s.clone())),
-            crate::ast::Expression::Binary { left, op, right } => {
+            crate::ast::Expression::Binary { left, op, right, location: _ } => {
                 let left_result = self.generate_from_expression(left).unwrap();
                 let right_result = self.generate_from_expression(right).unwrap();
                 let result = self.new_temp();
@@ -166,7 +263,7 @@ impl QuadrupleGenerator {
                 self.emit(Operator::Not, Some(expr_result), None, Some(result.clone()));
                 Some(result)
             },
-            _ => None
+                _ => None
+            }
         }
     }
-}

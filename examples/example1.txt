@@ -1,0 +1,14 @@
+MainPrgm SimpleTest;
+Var
+let a, b: Int;
+@define Const PI: Float = 3.14;
+let result: Float;
+
+BeginPg
+{
+    a := 10;
+    b := 5;
+    result := a + b * PI;
+    output("The result is:", result);
+}
+EndPg;

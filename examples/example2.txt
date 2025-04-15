@@ -1,0 +1,27 @@
+MainPrgm ArrayAndLoopTest;
+Var
+let n, sum, i: Int;
+@define Const SIZE: Int = 10;
+let numbers: [Int; 10];
+
+BeginPg
+{
+    n := 5;
+    sum := 0;
+    
+    for i from 0 to SIZE-1 step 1 {
+        numbers[i] := i * i;
+    }
+    
+    for i from 0 to n step 1 {
+        if (numbers[i] > 10) then {
+            sum := sum + numbers[i];
+            output("Added", numbers[i], "to sum");
+        } else {
+            output("Skipped", numbers[i]);
+        }
+    }
+    
+    output("Final sum:", sum);
+}
+EndPg;

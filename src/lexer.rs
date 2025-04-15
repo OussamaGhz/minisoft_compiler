@@ -157,13 +157,14 @@ pub enum Token {
     #[regex(r#""[^"]*""#, lex_string)]
     StringLiteral(String),
 
-    // Comments - these are skipped but we need to define them
-    #[regex(r"< !-.*-!>", logos::skip)]
-    #[regex(r"\{--[^-]*(?:-[^-]+)*--\}", logos::skip)]
-    // Whitespace and newlines
-    #[regex(r"[ \t\n\r]+", logos::skip)]
-    // Error variant (no longer needs #[error] attribute in Logos 0.13+)
-    Error,
+     // Comments - fixed regex patterns
+     #[regex(r"//[^\n]*", logos::skip)]            // Single-line comments with //
+     #[regex(r"/\*([^*]|\*[^/])*\*/", logos::skip)] // Multi-line comments with /* ... */
+     
+     // Whitespace and newlines
+     #[regex(r"[ \t\n\r]+", logos::skip)]
+     // Error variant
+     Error,
 }
 
 // Helper functions for token conversion

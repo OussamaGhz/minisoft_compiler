@@ -1,0 +1,33 @@
+MainPrgm ErrorTest;
+Var
+let x, y: Int;
+@define Const MAX: Int = 100;
+let z: Float;
+let arr: [Int; 5];
+
+BeginPg
+{
+    // Error 1: Undefined variable
+    x := a + 10;
+    
+    // Error 2: Type mismatch (assigning string to int)
+    y := "hello";
+    
+    // Error 3: Array index out of bounds
+    arr[10] := 5;
+    
+    // Error 4: Division by zero
+    z := x / 0;
+    
+    // Error 5: Modifying a constant
+    MAX := 200;
+    
+    // Error 6: Array used as scalar
+    x := arr + 1;
+    
+    // Error 7: Invalid array index type
+    arr[z] := 10;
+    
+    output("Test complete");
+}
+EndPg;
