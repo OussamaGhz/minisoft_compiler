@@ -15,31 +15,20 @@ use crate::semantic_analyzer::SemanticAnalyzer;
 
 fn main() {
     let input = r#"
- MainPrgm ArrayAndLoopTest;
+ MainPrgm SimpleTest;
 Var
-let n, sum, i: Int;
-@define Const SIZE: Int = 10;
-let numbers: [Int; 10];
+let a, b, c: Int;
+@define Const PI: Float = 3.14;
+
+let result: Float;
 
 BeginPg
 {
-    n := 5;
-    sum := 0;
-    
-    for i from 0 to SIZE-1 step 1 {
-        numbers[i] := i * i;
-    }
-    
-    for i from 0 to n step 1 {
-        if (numbers[i] > 10) then {
-            sum := sum + numbers[i];
-            output("Added", numbers[i], "to sum");
-        } else {
-            output("Skipped", numbers[i]);
-        }
-    }
-    
-    output("Final sum:", sum);
+    a := "10";
+    c := 20.1;
+    b := 0;
+    result := a / b;
+    output("The result is:", result);
 }
 EndPg;
     "#;

@@ -1,14 +1,4 @@
-Successfully parsed program: Program { name: "ArrayAndLoopTest", declarations: [VariableDecl { names: ["n", "sum", "i"], type_spec: Type("Int") }, ConstDecl { name: "SIZE", type_name: "Int", value: Integer(10) }, VariableDecl { names: ["numbers"], type_spec: ArrayType { type_name: "Int", size: 10 } }], statements: [Assignment { target: Simple("n"), value: Literal(Integer(5)) }, Assignment { target: Simple("sum"), value: Literal(Integer(0)) }, For { var: "i", start: Literal(Integer(0)), end: Binary { left: Var(Simple("SIZE")), op: Subtract, right: Literal(Integer(1)) }, step: Literal(Integer(1)), body: [Assignment { target: Array { name: "numbers", index: Var(Simple("i")) }, value: Binary { left: Var(Simple("i")), op: Multiply, right: Var(Simple("i")) } }] }, For { var: "i", start: Literal(Integer(0)), end: Var(Simple("n")), step: Literal(Integer(1)), body: [IfElse { condition: Expr(Binary { left: Var(Array { name: "numbers", index: Var(Simple("i")) }), op: GreaterThan, right: Literal(Integer(10)) }), if_branch: [Assignment { target: Simple("sum"), value: Binary { left: Var(Simple("sum")), op: Add, right: Var(Array { name: "numbers", index: Var(Simple("i")) }) } }, Output { expressions: [String("Added"), Var(Array { name: "numbers", index: Var(Simple("i")) }), String("to sum")] }], else_branch: [Output { expressions: [String("Skipped"), Var(Array { name: "numbers", index: Var(Simple("i")) })] }] }] }, Output { expressions: [String("Final sum:"), Var(Simple("sum"))] }] }
-Semantic analysis successful.
-
-Symbol Table:
-+--------------------+---------------+----------+---------------+--------+--------+
-| Name               | Entity Type   | Type     | Value         | Line   | Column |
-+--------------------+---------------+----------+---------------+--------+--------+
-| SIZE               | Constant      | Int      | 10            | 13     | 21     |
-| i                  | Variable      | Int      | 0             | 22     | 39     |
-| n                  | Variable      | Int      | 5             | 17     | 21     |
-| numbers            | Array[10]     | Int      | -             | 22     | 31     |
-| sum                | Variable      | Int      | -             | 26     | 26     |
-+--------------------+---------------+----------+---------------+--------+--------+
-
+Successfully parsed program: Program { name: "SimpleTest", declarations: [VariableDecl { names: ["a", "b", "c"], type_spec: Type("Int") }, ConstDecl { name: "PI", type_name: "Float", value: Float(3.14) }, VariableDecl { names: ["result"], type_spec: Type("Float") }], statements: [Assignment { target: Simple("a"), value: String("10") }, Assignment { target: Simple("c"), value: Literal(Float(20.1)) }, Assignment { target: Simple("b"), value: Literal(Integer(0)) }, Assignment { target: Simple("result"), value: Binary { left: Var(Simple("a")), op: Divide, right: Var(Simple("b")) } }, Output { expressions: [String("The result is:"), Var(Simple("result"))] }] }
+Semantic errors:
+Line 14, Column 15: Cannot assign string '10' to variable 'a' of type Int
+Line 14, Column 19: Division by zero

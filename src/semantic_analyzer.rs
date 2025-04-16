@@ -1,7 +1,7 @@
 // src/semantic_analyzer.rs
 
-use crate::ast::{Program, Declaration, Statement, Expression, BinaryOp, Condition, Variable};
-use crate::symbol_table::{SymbolTable, SymbolEntry, EntityType, DataType, Value};
+use crate::ast::{BinaryOp, Condition, Declaration, Expression, Program, Statement, Variable};
+use crate::symbol_table::{DataType, EntityType, SymbolEntry, SymbolTable, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -26,19 +26,23 @@ impl SemanticAnalyzer {
         }
     }
 
-    pub fn analyze(&mut self, program: &Program, source_map: HashMap<String, (usize, usize)>) -> Result<(), Vec<SemanticError>> {
+    pub fn analyze(
+        &mut self,
+        program: &Program,
+        source_map: HashMap<String, (usize, usize)>,
+    ) -> Result<(), Vec<SemanticError>> {
         self.source_map = source_map;
-        
+
         // Process declarations
         for decl in &program.declarations {
             self.process_declaration(decl);
         }
-        
+
         // Process statements
         for stmt in &program.statements {
             self.process_statement(stmt);
         }
-        
+
         if self.errors.is_empty() {
             Ok(())
         } else {
@@ -50,10 +54,10 @@ impl SemanticAnalyzer {
         match decl {
             Declaration::VariableDecl { names, type_spec } => {
                 let data_type = self.get_data_type(type_spec);
-                
+
                 for name in names {
                     let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
-                    
+
                     match type_spec {
                         Expression::Type(_) => {
                             let entry = SymbolEntry {
@@ -64,7 +68,7 @@ impl SemanticAnalyzer {
                                 line,
                                 column,
                             };
-                            
+
                             if let Err(e) = self.symbol_table.insert(entry) {
                                 self.errors.push(SemanticError {
                                     message: e,
@@ -72,17 +76,18 @@ impl SemanticAnalyzer {
                                     column,
                                 });
                             }
-                        },
+                        }
                         Expression::ArrayType { type_name: _, size } => {
+                            let initial_values = vec![Value::Undefined; *size as usize];
                             let entry = SymbolEntry {
                                 name: name.clone(),
                                 entity_type: EntityType::Array { size: *size },
                                 data_type: data_type.clone(),
-                                value: Value::Undefined,
+                                value: Value::Array(initial_values),
                                 line,
                                 column,
                             };
-                            
+
                             if let Err(e) = self.symbol_table.insert(entry) {
                                 self.errors.push(SemanticError {
                                     message: e,
@@ -90,12 +95,16 @@ impl SemanticAnalyzer {
                                     column,
                                 });
                             }
-                        },
+                        }
                         _ => {} // Should not happen based on grammar
                     }
                 }
-            },
-            Declaration::ConstDecl { name, type_name, value } => {
+            }
+            Declaration::ConstDecl {
+                name,
+                type_name,
+                value,
+            } => {
                 let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                 let data_type = match type_name.as_str() {
                     "Int" => DataType::Int,
@@ -109,7 +118,7 @@ impl SemanticAnalyzer {
                         return;
                     }
                 };
-                
+
                 // Evaluate constant value
                 if let Some(const_value) = self.evaluate_constant(value) {
                     // Check type compatibility
@@ -124,7 +133,7 @@ impl SemanticAnalyzer {
                                 line,
                                 column,
                             };
-                            
+
                             if let Err(e) = self.symbol_table.insert(entry) {
                                 self.errors.push(SemanticError {
                                     message: e,
@@ -132,11 +141,13 @@ impl SemanticAnalyzer {
                                     column,
                                 });
                             }
-                        },
+                        }
                         _ => {
                             self.errors.push(SemanticError {
-                                message: format!("Type mismatch for constant '{}': expected {:?}, got {:?}", 
-                                    name, data_type, const_value),
+                                message: format!(
+                                    "Type mismatch for constant '{}': expected {:?}, got {:?}",
+                                    name, data_type, const_value
+                                ),
                                 line,
                                 column,
                             });
@@ -157,26 +168,36 @@ impl SemanticAnalyzer {
         match stmt {
             Statement::Assignment { target, value } => {
                 self.check_assignment(target, value);
-            },
-            Statement::IfElse { condition, if_branch, else_branch } => {
+            }
+            Statement::IfElse {
+                condition,
+                if_branch,
+                else_branch,
+            } => {
                 self.check_condition(condition);
-                
+
                 for stmt in if_branch {
                     self.process_statement(stmt);
                 }
-                
+
                 for stmt in else_branch {
                     self.process_statement(stmt);
                 }
-            },
+            }
             Statement::DoWhile { condition, body } => {
                 self.check_condition(condition);
-                
+
                 for stmt in body {
                     self.process_statement(stmt);
                 }
-            },
-            Statement::For { var, start, end, step, body } => {
+            }
+            Statement::For {
+                var,
+                start,
+                end,
+                step,
+                body,
+            } => {
                 // Check if variable exists
                 if self.symbol_table.lookup(var).is_none() {
                     let (line, column) = self.source_map.get(var).unwrap_or(&(0, 0)).clone();
@@ -189,7 +210,8 @@ impl SemanticAnalyzer {
                     // Initialize loop variable with start value if possible
                     if let Some(start_val) = self.evaluate_expression(start) {
                         if let Err(e) = self.symbol_table.update_value(var, start_val) {
-                            let (line, column) = self.source_map.get(var).unwrap_or(&(0, 0)).clone();
+                            let (line, column) =
+                                self.source_map.get(var).unwrap_or(&(0, 0)).clone();
                             self.errors.push(SemanticError {
                                 message: e,
                                 line,
@@ -198,17 +220,17 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-                
+
                 // Check expressions
                 self.check_expression(start);
                 self.check_expression(end);
                 self.check_expression(step);
-                
+
                 // Process body
                 for stmt in body {
                     self.process_statement(stmt);
                 }
-            },
+            }
             Statement::Input { var } => {
                 if self.symbol_table.lookup(var).is_none() {
                     let (line, column) = self.source_map.get(var).unwrap_or(&(0, 0)).clone();
@@ -230,7 +252,7 @@ impl SemanticAnalyzer {
                         });
                     }
                 }
-            },
+            }
             Statement::Output { expressions } => {
                 for expr in expressions {
                     self.check_expression(expr);
@@ -255,7 +277,8 @@ impl SemanticAnalyzer {
                         return;
                     }
                 };
-    
+
+
                 // Check if assigning to constant
                 if let EntityType::Constant = entry.entity_type {
                     let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
@@ -266,16 +289,28 @@ impl SemanticAnalyzer {
                     });
                     return;
                 }
-    
+
+                 // Check for string literals in assignment
+                 if let Expression::String(s) = value {
+                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                    self.errors.push(SemanticError {
+                        message: format!("Cannot assign string '{}' to variable '{}' of type {:?}", s, name, entry.data_type),
+                        line,
+                        column,
+                    });
+                    return;
+                }
+
                 // Check expression
                 self.check_expression(value);
-    
+
                 // Special case for literal values - handle them directly
                 match value {
                     Expression::Integer(n) => {
                         let val = Value::Int(*n);
                         if let Err(e) = self.symbol_table.update_value(name, val) {
-                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            let (line, column) =
+                                self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                             self.errors.push(SemanticError {
                                 message: e,
                                 line,
@@ -283,11 +318,12 @@ impl SemanticAnalyzer {
                             });
                         }
                         return;
-                    },
+                    }
                     Expression::Float(n) => {
                         let val = Value::Float(*n);
                         if let Err(e) = self.symbol_table.update_value(name, val) {
-                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            let (line, column) =
+                                self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                             self.errors.push(SemanticError {
                                 message: e,
                                 line,
@@ -295,14 +331,15 @@ impl SemanticAnalyzer {
                             });
                         }
                         return;
-                    },
+                    }
                     Expression::Literal(expr) => {
                         // Handle unwrapping the literal value
                         match &**expr {
                             Expression::Integer(n) => {
                                 let val = Value::Int(*n);
                                 if let Err(e) = self.symbol_table.update_value(name, val) {
-                                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                    let (line, column) =
+                                        self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                                     self.errors.push(SemanticError {
                                         message: e,
                                         line,
@@ -310,11 +347,12 @@ impl SemanticAnalyzer {
                                     });
                                 }
                                 return;
-                            },
+                            }
                             Expression::Float(n) => {
                                 let val = Value::Float(*n);
                                 if let Err(e) = self.symbol_table.update_value(name, val) {
-                                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                    let (line, column) =
+                                        self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                                     self.errors.push(SemanticError {
                                         message: e,
                                         line,
@@ -322,13 +360,14 @@ impl SemanticAnalyzer {
                                     });
                                 }
                                 return;
-                            },
+                            }
                             _ => {} // Fall through to the general case
                         }
-                    },
+                    }
                     _ => {} // Fall through to the general case
                 }
-    
+                
+
                 // Try to evaluate the expression and update the symbol table
                 if let Some(evaluated_value) = self.evaluate_expression(value) {
                     // Here we could add type checking between entry.data_type and evaluated_value
@@ -352,7 +391,7 @@ impl SemanticAnalyzer {
                         });
                     }
                 }
-            },
+            }
             Variable::Array { name, index } => {
                 // Check if array exists
                 let entry = match self.symbol_table.lookup(name) {
@@ -367,63 +406,49 @@ impl SemanticAnalyzer {
                         return;
                     }
                 };
-                
+            
                 // Check if it's an array
-                match &entry.entity_type {
-                    EntityType::Array { size } => {
-                        // Check index
-                        if let Some(idx_val) = self.evaluate_constant(index) {
-                            if let Value::Int(idx) = idx_val {
-                                if idx < 0 || idx >= *size {
+                if let EntityType::Array { size } = entry.entity_type {
+                    // Evaluate the index expression
+                    if let Some(Value::Int(idx)) = self.evaluate_constant(index) {
+                        if idx < 0 || idx >= size {
+                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            self.errors.push(SemanticError {
+                                message: format!("Array index out of bounds: '{}[{}]', size is {}", name, idx, size),
+                                line,
+                                column,
+                            });
+                        } else {
+                            // Evaluate the value expression
+                            if let Some(value) = self.evaluate_expression(value) {
+                                // Update the array element at idx
+                                if let Err(e) = self.symbol_table.update_array_element(name, idx as usize, value) {
                                     let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                                     self.errors.push(SemanticError {
-                                        message: format!("Array index out of bounds: '{}[{}]', size is {}", 
-                                            name, idx, size),
+                                        message: e,
                                         line,
                                         column,
                                     });
                                 }
-                                
-                                // For arrays, we'd ideally store values in a separate array container
-                                // For simplicity in this example, we'll just mark the array as assigned
-                                // A real implementation would track individual array elements
-                                if let Some(_) = self.evaluate_expression(value) {
-                                    if let Err(e) = self.symbol_table.update_value(name, Value::Undefined) {
-                                        let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
-                                        self.errors.push(SemanticError {
-                                            message: e,
-                                            line,
-                                            column,
-                                        });
-                                    }
-                                }
-                            }
-                        } else {
-                            // If we can't evaluate the index at compile time, we need runtime checks
-                            self.check_expression(index);
-                            
-                            // Mark array as assigned at runtime
-                            if let Err(e) = self.symbol_table.update_value(name, Value::Undefined) {
-                                let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
-                                self.errors.push(SemanticError {
-                                    message: e,
-                                    line,
-                                    column,
-                                });
+                            } else {
+                                // Mark element as Undefined if value can't be determined
+                                self.symbol_table.update_array_element(name, idx as usize, Value::Undefined).ok();
                             }
                         }
-                    },
-                    _ => {
-                        let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
-                        self.errors.push(SemanticError {
-                            message: format!("'{}' is not an array", name),
-                            line,
-                            column,
-                        });
+                    } else {
+                        // Index isn't a constant; check expressions but can't track value
+                        self.check_expression(index);
                     }
+                } else {
+                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                    self.errors.push(SemanticError {
+                        message: format!("'{}' is not an array", name),
+                        line,
+                        column,
+                    });
                 }
-                
-                // Check expression
+            
+                // Check the value expression
                 self.check_expression(value);
             }
         }
@@ -435,14 +460,15 @@ impl SemanticAnalyzer {
                 match var {
                     Variable::Simple(name) => {
                         if self.symbol_table.lookup(name).is_none() {
-                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            let (line, column) =
+                                self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                             self.errors.push(SemanticError {
                                 message: format!("Undeclared identifier: '{}'", name),
                                 line,
                                 column,
                             });
                         }
-                    },
+                    }
                     Variable::Array { name, index } => {
                         if let Some(entry) = self.symbol_table.lookup(name) {
                             if let EntityType::Array { size } = entry.entity_type {
@@ -450,7 +476,11 @@ impl SemanticAnalyzer {
                                 if let Some(idx_val) = self.evaluate_constant(index) {
                                     if let Value::Int(idx) = idx_val {
                                         if idx < 0 || idx >= size {
-                                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                            let (line, column) = self
+                                                .source_map
+                                                .get(name)
+                                                .unwrap_or(&(0, 0))
+                                                .clone();
                                             self.errors.push(SemanticError {
                                                 message: format!("Array index out of bounds: '{}[{}]', size is {}", 
                                                     name, idx, size),
@@ -463,7 +493,8 @@ impl SemanticAnalyzer {
                                 // Check the index expression
                                 self.check_expression(index);
                             } else {
-                                let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                let (line, column) =
+                                    self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                                 self.errors.push(SemanticError {
                                     message: format!("'{}' is not an array", name),
                                     line,
@@ -471,7 +502,8 @@ impl SemanticAnalyzer {
                                 });
                             }
                         } else {
-                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            let (line, column) =
+                                self.source_map.get(name).unwrap_or(&(0, 0)).clone();
                             self.errors.push(SemanticError {
                                 message: format!("Undeclared identifier: '{}'", name),
                                 line,
@@ -480,39 +512,55 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-            },
+            }
             Expression::Binary { left, op, right } => {
                 self.check_expression(left);
                 self.check_expression(right);
-                
-                // Check for division by zero
+
+                // Check for division by zero using evaluate_expression to track variable values
                 if let BinaryOp::Divide = op {
-                    if let Some(right_val) = self.evaluate_constant(right) {
+                    if let Some(right_val) = self.evaluate_expression(right) {
                         match right_val {
                             Value::Int(0) | Value::Float(0.0) => {
-                                // For simplicity, we're using 0,0 as position since we don't have the actual position
+                                // Get the source position from the right expression if possible
+                                let (line, column) = self.get_expr_source_pos(right);
                                 self.errors.push(SemanticError {
                                     message: "Division by zero".to_string(),
-                                    line: 0,
-                                    column: 0,
+                                    line,
+                                    column,
                                 });
-                            },
+                            }
                             _ => {}
                         }
                     }
                 }
-                
+
                 // Type checking would be more extensive here
-            },
+            }
             Expression::Not(expr) => {
                 self.check_expression(expr);
-            },
+            }
             _ => {
                 // Other expression types are literals or types, no need to check
             }
         }
     }
 
+
+    /// Helper to get the source position of an expression (simplified)
+    fn get_expr_source_pos(&self, expr: &Expression) -> (usize, usize) {
+        match expr {
+            Expression::Var(var) => {
+                match var {
+                    Variable::Simple(name) => *self.source_map.get(name).unwrap_or(&(0, 0)),
+                    Variable::Array { name, .. } => *self.source_map.get(name).unwrap_or(&(0, 0)),
+                }
+            }
+            // For literals, use default (0,0) as their positions aren't tracked
+            _ => (0, 0),
+        }
+    }
+    
     fn check_condition(&mut self, condition: &Condition) {
         match condition {
             Condition::Expr(expr) => {
@@ -529,14 +577,14 @@ impl SemanticAnalyzer {
                     "Float" => DataType::Float,
                     _ => DataType::Int, // Default, but should not happen
                 }
-            },
+            }
             Expression::ArrayType { type_name, size: _ } => {
                 match type_name.as_str() {
                     "Int" => DataType::Int,
                     "Float" => DataType::Float,
                     _ => DataType::Int, // Default, but should not happen
                 }
-            },
+            }
             _ => DataType::Int, // Default, but should not happen
         }
     }
@@ -551,28 +599,31 @@ impl SemanticAnalyzer {
             Expression::Literal(inner_expr) => {
                 // Unwrap the literal and evaluate the inner expression
                 self.evaluate_expression(inner_expr)
-            },
+            }
             Expression::Var(var) => {
                 match var {
                     Variable::Simple(name) => {
                         if let Some(entry) = self.symbol_table.lookup(name) {
                             match &entry.value {
                                 Value::Undefined => None, // Value not determined at compile time
-                                _ => Some(entry.value.clone())
+                                _ => Some(entry.value.clone()),
                             }
                         } else {
                             None
                         }
-                    },
+                    }
                     Variable::Array { name: _, index: _ } => {
                         // For array access, we'd need to track individual elements
                         // For simplicity, we'll just return None for array elements
                         None
                     }
                 }
-            },
+            }
             Expression::Binary { left, op, right } => {
-                if let (Some(left_val), Some(right_val)) = (self.evaluate_expression(left), self.evaluate_expression(right)) {
+                if let (Some(left_val), Some(right_val)) = (
+                    self.evaluate_expression(left),
+                    self.evaluate_expression(right),
+                ) {
                     match (left_val, right_val) {
                         // The binary operation handling remains the same
                         (Value::Int(left_int), Value::Int(right_int)) => {
@@ -580,17 +631,17 @@ impl SemanticAnalyzer {
                             match op {
                                 BinaryOp::Add => Some(Value::Int(left_int + right_int)),
                                 // Other operations remain the same
-                                _ => None
+                                _ => None,
                             }
-                        },
+                        }
                         (Value::Float(left_float), Value::Float(right_float)) => {
                             // Implementation for float operations remains the same
                             match op {
                                 BinaryOp::Add => Some(Value::Float(left_float + right_float)),
                                 // Other operations remain the same
-                                _ => None
+                                _ => None,
                             }
-                        },
+                        }
                         // Handle mixed types (Int and Float)
                         (Value::Int(left_int), Value::Float(right_float)) => {
                             // Convert int to float and perform float operation
@@ -605,11 +656,11 @@ impl SemanticAnalyzer {
                                     } else {
                                         Some(Value::Float(left_float / right_float))
                                     }
-                                },
+                                }
                                 // Other operations would use similar logic
-                                _ => None
+                                _ => None,
                             }
-                        },
+                        }
                         (Value::Float(left_float), Value::Int(right_int)) => {
                             // Convert int to float and perform float operation
                             let right_float = right_int as f32;
@@ -623,29 +674,29 @@ impl SemanticAnalyzer {
                                     } else {
                                         Some(Value::Float(left_float / right_float))
                                     }
-                                },
+                                }
                                 // Other operations would use similar logic
-                                _ => None
+                                _ => None,
                             }
-                        },
-                        _ => None
+                        }
+                        _ => None,
                     }
                 } else {
                     None
                 }
-            },
+            }
             Expression::Not(expr) => {
                 // Logic for the Not operator remains the same
                 if let Some(val) = self.evaluate_expression(expr) {
                     match val {
                         Value::Int(i) => Some(Value::Int(if i == 0 { 1 } else { 0 })),
                         Value::Float(f) => Some(Value::Int(if f == 0.0 { 1 } else { 0 })),
-                        _ => None
+                        _ => None,
                     }
                 } else {
                     None
                 }
-            },
+            }
             _ => None,
         }
     }
@@ -657,9 +708,11 @@ impl SemanticAnalyzer {
             Expression::Literal(inner_expr) => {
                 // Unwrap the literal and evaluate the inner expression
                 self.evaluate_constant(inner_expr)
-            },
+            }
             Expression::Binary { left, op, right } => {
-                if let (Some(left_val), Some(right_val)) = (self.evaluate_constant(left), self.evaluate_constant(right)) {
+                if let (Some(left_val), Some(right_val)) =
+                    (self.evaluate_constant(left), self.evaluate_constant(right))
+                {
                     match (left_val, right_val) {
                         (Value::Int(left_int), Value::Int(right_int)) => {
                             match op {
@@ -673,10 +726,10 @@ impl SemanticAnalyzer {
                                     } else {
                                         Some(Value::Int(left_int / right_int))
                                     }
-                                },
-                                _ => None // Logical operators not supported in constant evaluation
+                                }
+                                _ => None, // Logical operators not supported in constant evaluation
                             }
-                        },
+                        }
                         (Value::Float(left_float), Value::Float(right_float)) => {
                             match op {
                                 BinaryOp::Add => Some(Value::Float(left_float + right_float)),
@@ -689,32 +742,30 @@ impl SemanticAnalyzer {
                                     } else {
                                         Some(Value::Float(left_float / right_float))
                                     }
-                                },
-                                _ => None // Logical operators not supported in constant evaluation
+                                }
+                                _ => None, // Logical operators not supported in constant evaluation
                             }
-                        },
-                        _ => None // Mixed types not supported in constant evaluation
+                        }
+                        _ => None, // Mixed types not supported in constant evaluation
                     }
                 } else {
                     None
                 }
-            },
+            }
             Expression::Not(_) => None, // Not supported in constant evaluation
-            Expression::Var(var) => {
-                match var {
-                    Variable::Simple(name) => {
-                        if let Some(entry) = self.symbol_table.lookup(name) {
-                            if let EntityType::Constant = entry.entity_type {
-                                Some(entry.value.clone())
-                            } else {
-                                None
-                            }
+            Expression::Var(var) => match var {
+                Variable::Simple(name) => {
+                    if let Some(entry) = self.symbol_table.lookup(name) {
+                        if let EntityType::Constant = entry.entity_type {
+                            Some(entry.value.clone())
                         } else {
-                            None    
+                            None
                         }
-                    },
-                    _ => None
+                    } else {
+                        None
+                    }
                 }
+                _ => None,
             },
             _ => None,
         }
