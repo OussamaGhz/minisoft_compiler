@@ -1,4 +1,14 @@
-Successfully parsed program: Program { name: "SimpleTest", declarations: [VariableDecl { names: ["a", "b", "c"], type_spec: Type("Int") }, ConstDecl { name: "PI", type_name: "Float", value: Float(3.14) }, VariableDecl { names: ["result"], type_spec: Type("Float") }], statements: [Assignment { target: Simple("a"), value: String("10") }, Assignment { target: Simple("c"), value: Literal(Float(20.1)) }, Assignment { target: Simple("b"), value: Literal(Integer(0)) }, Assignment { target: Simple("result"), value: Binary { left: Var(Simple("a")), op: Divide, right: Var(Simple("b")) } }, Output { expressions: [String("The result is:"), Var(Simple("result"))] }] }
-Semantic errors:
-Line 14, Column 15: Cannot assign string '10' to variable 'a' of type Int
-Line 14, Column 19: Division by zero
+Successfully parsed program: Program { name: "SimpleTest", declarations: [VariableDecl { names: ["a", "b", "c"], type_spec: Type("Int") }, ConstDecl { name: "PI", type_name: "Float", value: Float(3.14) }, VariableDecl { names: ["result"], type_spec: Type("Int") }], statements: [Assignment { target: Simple("a"), value: Literal(Integer(10)) }, Assignment { target: Simple("c"), value: Literal(Integer(20)) }, Assignment { target: Simple("b"), value: Literal(Integer(2)) }, Assignment { target: Simple("result"), value: Binary { left: Var(Simple("a")), op: Divide, right: Var(Simple("b")) } }, Output { expressions: [String("The result is:"), Var(Simple("result"))] }] }
+Semantic analysis successful.
+
+Symbol Table:
++--------------------+---------------+----------+---------------+--------+--------+
+| Name               | Entity Type   | Type     | Value         | Line   | Column |
++--------------------+---------------+----------+---------------+--------+--------+
+| PI                 | Constant      | Float    | 3.14          | 5      | 15     |
+| a                  | Variable      | Int      | 10            | 14     | 15     |
+| b                  | Variable      | Int      | 2             | 14     | 19     |
+| c                  | Variable      | Int      | 20            | 12     | 5      |
+| result             | Variable      | Int      | 5             | 15     | 30     |
++--------------------+---------------+----------+---------------+--------+--------+
+

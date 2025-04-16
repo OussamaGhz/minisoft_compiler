@@ -560,7 +560,7 @@ impl SemanticAnalyzer {
             _ => (0, 0),
         }
     }
-    
+
     fn check_condition(&mut self, condition: &Condition) {
         match condition {
             Condition::Expr(expr) => {
@@ -625,21 +625,34 @@ impl SemanticAnalyzer {
                     self.evaluate_expression(right),
                 ) {
                     match (left_val, right_val) {
-                        // The binary operation handling remains the same
                         (Value::Int(left_int), Value::Int(right_int)) => {
-                            // Implementation for integer operations remains the same
                             match op {
                                 BinaryOp::Add => Some(Value::Int(left_int + right_int)),
-                                // Other operations remain the same
-                                _ => None,
+                                BinaryOp::Subtract => Some(Value::Int(left_int - right_int)),
+                                BinaryOp::Multiply => Some(Value::Int(left_int * right_int)),
+                                BinaryOp::Divide => {
+                                    if right_int == 0 {
+                                        None // Division by zero error
+                                    } else {
+                                        Some(Value::Int(left_int / right_int))
+                                    }
+                                }
+                                _ => None, // Handle other operations if needed
                             }
                         }
                         (Value::Float(left_float), Value::Float(right_float)) => {
-                            // Implementation for float operations remains the same
                             match op {
                                 BinaryOp::Add => Some(Value::Float(left_float + right_float)),
-                                // Other operations remain the same
-                                _ => None,
+                                BinaryOp::Subtract => Some(Value::Float(left_float - right_float)),
+                                BinaryOp::Multiply => Some(Value::Float(left_float * right_float)),
+                                BinaryOp::Divide => {
+                                    if right_float == 0.0 {
+                                        None // Division by zero error
+                                    } else {
+                                        Some(Value::Float(left_float / right_float))
+                                    }
+                                }
+                                _ => None, // Handle other operations if needed
                             }
                         }
                         // Handle mixed types (Int and Float)
@@ -700,6 +713,8 @@ impl SemanticAnalyzer {
             _ => None,
         }
     }
+
+    
 
     fn evaluate_constant(&self, expr: &Expression) -> Option<Value> {
         match expr {

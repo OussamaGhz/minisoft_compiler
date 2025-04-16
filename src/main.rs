@@ -20,13 +20,13 @@ Var
 let a, b, c: Int;
 @define Const PI: Float = 3.14;
 
-let result: Float;
+let result: Int;
 
 BeginPg
 {
-    a := "10";
-    c := 20.1;
-    b := 0;
+    a := 10;
+    c := 20;
+    b := 2;
     result := a / b;
     output("The result is:", result);
 }
