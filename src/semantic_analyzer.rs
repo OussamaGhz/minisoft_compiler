@@ -185,6 +185,18 @@ impl SemanticAnalyzer {
                         line,
                         column,
                     });
+                } else {
+                    // Initialize loop variable with start value if possible
+                    if let Some(start_val) = self.evaluate_expression(start) {
+                        if let Err(e) = self.symbol_table.update_value(var, start_val) {
+                            let (line, column) = self.source_map.get(var).unwrap_or(&(0, 0)).clone();
+                            self.errors.push(SemanticError {
+                                message: e,
+                                line,
+                                column,
+                            });
+                        }
+                    }
                 }
                 
                 // Check expressions
@@ -205,6 +217,18 @@ impl SemanticAnalyzer {
                         line,
                         column,
                     });
+                } else {
+                    // For input statements, mark the variable as having a runtime value
+                    // We can't know what the value will be at compile time
+                    // But we should mark that it's been assigned
+                    if let Err(e) = self.symbol_table.update_value(var, Value::Undefined) {
+                        let (line, column) = self.source_map.get(var).unwrap_or(&(0, 0)).clone();
+                        self.errors.push(SemanticError {
+                            message: e,
+                            line,
+                            column,
+                        });
+                    }
                 }
             },
             Statement::Output { expressions } => {
@@ -231,7 +255,7 @@ impl SemanticAnalyzer {
                         return;
                     }
                 };
-                
+    
                 // Check if assigning to constant
                 if let EntityType::Constant = entry.entity_type {
                     let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
@@ -242,12 +266,92 @@ impl SemanticAnalyzer {
                     });
                     return;
                 }
-                
+    
                 // Check expression
                 self.check_expression(value);
-                
-                // Type checking would be done here, but we'd need type inference first
-                // For now, we'll just make sure the expression is valid
+    
+                // Special case for literal values - handle them directly
+                match value {
+                    Expression::Integer(n) => {
+                        let val = Value::Int(*n);
+                        if let Err(e) = self.symbol_table.update_value(name, val) {
+                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            self.errors.push(SemanticError {
+                                message: e,
+                                line,
+                                column,
+                            });
+                        }
+                        return;
+                    },
+                    Expression::Float(n) => {
+                        let val = Value::Float(*n);
+                        if let Err(e) = self.symbol_table.update_value(name, val) {
+                            let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                            self.errors.push(SemanticError {
+                                message: e,
+                                line,
+                                column,
+                            });
+                        }
+                        return;
+                    },
+                    Expression::Literal(expr) => {
+                        // Handle unwrapping the literal value
+                        match &**expr {
+                            Expression::Integer(n) => {
+                                let val = Value::Int(*n);
+                                if let Err(e) = self.symbol_table.update_value(name, val) {
+                                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                    self.errors.push(SemanticError {
+                                        message: e,
+                                        line,
+                                        column,
+                                    });
+                                }
+                                return;
+                            },
+                            Expression::Float(n) => {
+                                let val = Value::Float(*n);
+                                if let Err(e) = self.symbol_table.update_value(name, val) {
+                                    let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                    self.errors.push(SemanticError {
+                                        message: e,
+                                        line,
+                                        column,
+                                    });
+                                }
+                                return;
+                            },
+                            _ => {} // Fall through to the general case
+                        }
+                    },
+                    _ => {} // Fall through to the general case
+                }
+    
+                // Try to evaluate the expression and update the symbol table
+                if let Some(evaluated_value) = self.evaluate_expression(value) {
+                    // Here we could add type checking between entry.data_type and evaluated_value
+                    // For now, just update the value
+                    if let Err(e) = self.symbol_table.update_value(name, evaluated_value) {
+                        let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                        self.errors.push(SemanticError {
+                            message: e,
+                            line,
+                            column,
+                        });
+                    }
+                } else {
+                    // If we can't evaluate at compile time, mark as having a runtime value
+                    if let Err(e) = self.symbol_table.update_value(name, Value::Undefined) {
+                        let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                        self.errors.push(SemanticError {
+                            message: e,
+                            line,
+                            column,
+                        });
+                    }
+                }
             },
             Variable::Array { name, index } => {
                 // Check if array exists
@@ -279,10 +383,34 @@ impl SemanticAnalyzer {
                                         column,
                                     });
                                 }
+                                
+                                // For arrays, we'd ideally store values in a separate array container
+                                // For simplicity in this example, we'll just mark the array as assigned
+                                // A real implementation would track individual array elements
+                                if let Some(_) = self.evaluate_expression(value) {
+                                    if let Err(e) = self.symbol_table.update_value(name, Value::Undefined) {
+                                        let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                        self.errors.push(SemanticError {
+                                            message: e,
+                                            line,
+                                            column,
+                                        });
+                                    }
+                                }
                             }
                         } else {
                             // If we can't evaluate the index at compile time, we need runtime checks
                             self.check_expression(index);
+                            
+                            // Mark array as assigned at runtime
+                            if let Err(e) = self.symbol_table.update_value(name, Value::Undefined) {
+                                let (line, column) = self.source_map.get(name).unwrap_or(&(0, 0)).clone();
+                                self.errors.push(SemanticError {
+                                    message: e,
+                                    line,
+                                    column,
+                                });
+                            }
                         }
                     },
                     _ => {
@@ -413,10 +541,123 @@ impl SemanticAnalyzer {
         }
     }
 
+    // This function is similar to evaluate_constant but handles more cases
+    // and is used to track runtime values in the symbol table
+    fn evaluate_expression(&self, expr: &Expression) -> Option<Value> {
+        match expr {
+            Expression::Integer(n) => Some(Value::Int(*n)),
+            Expression::Float(n) => Some(Value::Float(*n)),
+            Expression::String(_) => None, // We're not tracking string values in this example
+            Expression::Literal(inner_expr) => {
+                // Unwrap the literal and evaluate the inner expression
+                self.evaluate_expression(inner_expr)
+            },
+            Expression::Var(var) => {
+                match var {
+                    Variable::Simple(name) => {
+                        if let Some(entry) = self.symbol_table.lookup(name) {
+                            match &entry.value {
+                                Value::Undefined => None, // Value not determined at compile time
+                                _ => Some(entry.value.clone())
+                            }
+                        } else {
+                            None
+                        }
+                    },
+                    Variable::Array { name: _, index: _ } => {
+                        // For array access, we'd need to track individual elements
+                        // For simplicity, we'll just return None for array elements
+                        None
+                    }
+                }
+            },
+            Expression::Binary { left, op, right } => {
+                if let (Some(left_val), Some(right_val)) = (self.evaluate_expression(left), self.evaluate_expression(right)) {
+                    match (left_val, right_val) {
+                        // The binary operation handling remains the same
+                        (Value::Int(left_int), Value::Int(right_int)) => {
+                            // Implementation for integer operations remains the same
+                            match op {
+                                BinaryOp::Add => Some(Value::Int(left_int + right_int)),
+                                // Other operations remain the same
+                                _ => None
+                            }
+                        },
+                        (Value::Float(left_float), Value::Float(right_float)) => {
+                            // Implementation for float operations remains the same
+                            match op {
+                                BinaryOp::Add => Some(Value::Float(left_float + right_float)),
+                                // Other operations remain the same
+                                _ => None
+                            }
+                        },
+                        // Handle mixed types (Int and Float)
+                        (Value::Int(left_int), Value::Float(right_float)) => {
+                            // Convert int to float and perform float operation
+                            let left_float = left_int as f32;
+                            match op {
+                                BinaryOp::Add => Some(Value::Float(left_float + right_float)),
+                                BinaryOp::Subtract => Some(Value::Float(left_float - right_float)),
+                                BinaryOp::Multiply => Some(Value::Float(left_float * right_float)),
+                                BinaryOp::Divide => {
+                                    if right_float == 0.0 {
+                                        None // Division by zero
+                                    } else {
+                                        Some(Value::Float(left_float / right_float))
+                                    }
+                                },
+                                // Other operations would use similar logic
+                                _ => None
+                            }
+                        },
+                        (Value::Float(left_float), Value::Int(right_int)) => {
+                            // Convert int to float and perform float operation
+                            let right_float = right_int as f32;
+                            match op {
+                                BinaryOp::Add => Some(Value::Float(left_float + right_float)),
+                                BinaryOp::Subtract => Some(Value::Float(left_float - right_float)),
+                                BinaryOp::Multiply => Some(Value::Float(left_float * right_float)),
+                                BinaryOp::Divide => {
+                                    if right_int == 0 {
+                                        None // Division by zero
+                                    } else {
+                                        Some(Value::Float(left_float / right_float))
+                                    }
+                                },
+                                // Other operations would use similar logic
+                                _ => None
+                            }
+                        },
+                        _ => None
+                    }
+                } else {
+                    None
+                }
+            },
+            Expression::Not(expr) => {
+                // Logic for the Not operator remains the same
+                if let Some(val) = self.evaluate_expression(expr) {
+                    match val {
+                        Value::Int(i) => Some(Value::Int(if i == 0 { 1 } else { 0 })),
+                        Value::Float(f) => Some(Value::Int(if f == 0.0 { 1 } else { 0 })),
+                        _ => None
+                    }
+                } else {
+                    None
+                }
+            },
+            _ => None,
+        }
+    }
+
     fn evaluate_constant(&self, expr: &Expression) -> Option<Value> {
         match expr {
             Expression::Integer(n) => Some(Value::Int(*n)),
             Expression::Float(n) => Some(Value::Float(*n)),
+            Expression::Literal(inner_expr) => {
+                // Unwrap the literal and evaluate the inner expression
+                self.evaluate_constant(inner_expr)
+            },
             Expression::Binary { left, op, right } => {
                 if let (Some(left_val), Some(right_val)) = (self.evaluate_constant(left), self.evaluate_constant(right)) {
                     match (left_val, right_val) {
@@ -469,7 +710,7 @@ impl SemanticAnalyzer {
                                 None
                             }
                         } else {
-                            None
+                            None    
                         }
                     },
                     _ => None

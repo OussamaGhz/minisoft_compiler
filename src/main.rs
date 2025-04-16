@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 
+
 mod ast;
 mod lexer;
 mod parser;
@@ -21,7 +22,7 @@ let n, sum, i: Int;
 let numbers: [Int; 10];
 
 BeginPg
-{ // coment
+{
     n := 5;
     sum := 0;
     

@@ -6,8 +6,8 @@ Symbol Table:
 | Name               | Entity Type   | Type     | Value         | Line   | Column |
 +--------------------+---------------+----------+---------------+--------+--------+
 | SIZE               | Constant      | Int      | 10            | 13     | 21     |
-| i                  | Variable      | Int      | -             | 22     | 39     |
-| n                  | Variable      | Int      | -             | 17     | 21     |
+| i                  | Variable      | Int      | 0             | 22     | 39     |
+| n                  | Variable      | Int      | 5             | 17     | 21     |
 | numbers            | Array[10]     | Int      | -             | 22     | 31     |
 | sum                | Variable      | Int      | -             | 26     | 26     |
 +--------------------+---------------+----------+---------------+--------+--------+
